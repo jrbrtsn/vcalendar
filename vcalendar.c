@@ -92,7 +92,7 @@ static struct {
 } S= {
    .version.major= 0,
    .version.minor= 0,
-   .version.patch= 0
+   .version.patch= 1
 };
 
 /*===========================================================================*/
@@ -173,7 +173,7 @@ main(int argc, char **argv)
       fh= ez_fopen(argv[1], "r");
 
    /*=== Grab one line at a time from source ===*/
-   while (ez_fgets(buf, sizeof(buf), fh)) {
+   while (ez_fgets(buf, sizeof(buf) - 1, fh)) {
 
       /* Get rid of whitespace on the end */
       trimend(buf);
@@ -189,7 +189,7 @@ main(int argc, char **argv)
          }
          
          size_t sz= strlen(buf);
-         ez_fgets(buf+sz, sizeof(buf)-sz, fh);
+         ez_fgets(buf+sz, sizeof(buf)-sz - 1, fh);
          trimend(buf);
       }
 
@@ -229,7 +229,7 @@ main(int argc, char **argv)
          if(!str)
             goto abort;
 
-         strncpy(S.organizer, skipspacec(str), sizeof(S.organizer));
+         strncpy(S.organizer, skipspacec(str), sizeof(S.organizer) - 1);
          trimend(S.organizer);
          S.flags |= ORG_FLG;
 
@@ -241,7 +241,7 @@ main(int argc, char **argv)
             goto abort;
          }
          ++line;
-         strncpy(S.location, line, sizeof(S.location));
+         strncpy(S.location, line, sizeof(S.location) - 1);
 
          S.flags |= LOCATION_FLG;
 
@@ -253,7 +253,7 @@ main(int argc, char **argv)
             goto abort;
          }
          ++line;
-         strncpy(S.summary, line, sizeof(S.summary));
+         strncpy(S.summary, line, sizeof(S.summary) - 1);
 
          S.flags |= SUMMARY_FLG;
 
@@ -267,7 +267,7 @@ main(int argc, char **argv)
          ++line;
 
          /* Copy unescaped string to our storage location */
-         strncpy(S.description, skipspacec(unescape(line)), sizeof(S.description));
+         strncpy(S.description, skipspacec(unescape(line)), sizeof(S.description) - 1 );
 
          /* Get rid of trailing whitespace */
          trimend(S.description);
