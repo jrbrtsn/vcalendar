@@ -1,0 +1,50 @@
+#baseDir := $(HOME)/src
+#libsDir := $(baseDir)/lib
+projectName := vcalendar
+versions := debug release
+cc_exe := vcalendar
+#install_dir := ~/bin
+
+
+########################################
+# Set up sources & libraries here.     #
+########################################
+
+ifeq ($(exe),vcalendar)
+src := \
+       ez_libc.c \
+       ez_libpthread.c \
+       ptrvec.c \
+       str.c \
+       util.c \
+       vcalendar.c \
+
+libs :=  pthread m
+
+endif
+
+local_cxxflags += -std=c++17
+#local_cppflags +=  -I$(baseDir)/libez -I$(baseDir)/liboopinc
+
+local_codeflags +=  \
+   -Wreturn-type \
+   -Wformat \
+   -Wchar-subscripts \
+   -Wparentheses -Wcast-qual \
+   -Wmissing-declarations \
+
+local_ldflags += -L$(libsDir)/$(version)
+
+########################################
+# Set up custom compile flags here.    #
+########################################
+ifeq ($(version),debug)
+local_cppflags += -D_DEBUG -DDEBUG
+local_codeflags += -g2 -O0
+endif
+
+ifeq ($(version),release)
+local_cppflags += -DNDEBUG
+local_codeflags += -g0 -O3
+endif
+
