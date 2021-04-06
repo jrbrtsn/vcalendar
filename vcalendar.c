@@ -356,6 +356,13 @@ main(int argc, char **argv)
             , S.organizer
             );
 
+   if(S.flags & DESC_FLG)
+      ez_fprintf(stdout, "\n%sDescription:%s\n\t%s\n"
+            , G.REV
+            , G.NORMAL
+            , S.description
+            );
+
    /* Attendees */
    PTRVEC_sort(&S.attendee_vec, ATND_ptrvec_cmp);
    if(PTRVEC_numItems(&S.attendee_vec)) {
@@ -369,13 +376,6 @@ main(int argc, char **argv)
          ATND_report(atnd, stdout);
       }
    }
-
-   if(S.flags & DESC_FLG)
-      ez_fprintf(stdout, "\n%sDescription:%s\n\t%s\n"
-            , G.REV
-            , G.NORMAL
-            , S.description
-            );
 
    /* Successful */
    rtn= EXIT_SUCCESS;
