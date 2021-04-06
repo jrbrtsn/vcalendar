@@ -12,6 +12,7 @@ cc_exe := vcalendar
 
 ifeq ($(exe),vcalendar)
 src := \
+       atnd.c \
        ez_libc.c \
        ez_libpthread.c \
        ptrvec.c \

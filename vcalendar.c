@@ -18,10 +18,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "atnd.h"
 #include "ez_libc.h"
 #include "ptrvec.h"
 #include "str.h"
 #include "util.h"
+#include "vcalendar.h"
 
 /* My preferred output format for date+time */
 #define STRFTIME_FMT "%H:%M %A %B %d, %Y %Z"
@@ -50,11 +52,19 @@ const static struct tz_xref {
    const char *ms,
               *posix;
 } Ms2Posix[]= {
-   {.ms= "(UTC-06:00) Central Time (US & Canada)", .posix= "America/Chicago" },
-   {.ms= "Central Standard Time", .posix= "America/Chicago" },
+   /* Make sure to supply a sufficiently unique string to match what immediately
+    * follows 'TZID=', or 'DTSTAMP' (no colon).
+    */
+   {.ms= "\"(UTC-06:00) Central Time (US & Canada)\"", .posix= "America/Chicago" },
+   {.ms= "Central Standard Time:", .posix= "America/Chicago" },
+
    /*--- >>> LOOK <<< Add other members here ---*/
+
    { /* Terminating member */ }
 };
+
+/* Instance the global static data */
+struct Global G;
 
 /*** Main information for code in this source file ***/
 static struct {
@@ -80,7 +90,7 @@ static struct {
           end,
           scheduled;
 
-   /* Vector of attendee strings */
+   /* Vector of ATND objects */
    PTRVEC attendee_vec;
 
    struct {
@@ -92,7 +102,7 @@ static struct {
 } S= {
    .version.major= 0,
    .version.minor= 0,
-   .version.patch= 1
+   .version.patch= 2
 };
 
 /*===========================================================================*/
@@ -165,14 +175,33 @@ main(int argc, char **argv)
       }
    } /* End command line option processing */
 
+   /*======= Possibly get some text style strings =======*/
+   if(isatty(fileno(stdout))) {
+
+      FILE *fh= ez_popen("tput bold", "r");
+      ez_fread(&G.BOLD, sizeof(G.BOLD)-1, 1, fh);
+      ez_pclose(fh);
+
+      fh= ez_popen("tput rev", "r");
+      ez_fread(&G.REV, sizeof(G.REV)-1, 1, fh);
+      ez_pclose(fh);
+
+      fh= ez_popen("tput sgr0", "r");
+      ez_fread(&G.NORMAL, sizeof(G.NORMAL)-1, 1, fh);
+      ez_pclose(fh);
+   }
+
+
    static char buf[4096];
    FILE *fh= stdin;
 
-   /* File name may have been supplied on command line */
+   /*======= File name may have been supplied on command line =======*/
    if(1 < argc)
       fh= ez_fopen(argv[1], "r");
 
-   /*=== Grab one line at a time from source ===*/
+   /*===========================================================================*/
+   /*================ Grab one line at a time from source ======================*/
+   /*===========================================================================*/
    while (ez_fgets(buf, sizeof(buf) - 1, fh)) {
 
       /* Get rid of whitespace on the end */
@@ -193,18 +222,20 @@ main(int argc, char **argv)
          trimend(buf);
       }
 
-      /** At this point the line has been reassembled **/
-      if(!strncmp(buf, "DTSTART;", 8)) { // Start time of the event
+      /*---------------------------------------------------------------------------*/
+      /*-------------------- Process reassembled line -----------------------------*/
+      /*---------------------------------------------------------------------------*/
+      if(!strncmp(buf, "DTSTART;TZID=", 13)) { // Start time of the event
 
-         S.start= vcal2utc(buf + 8);
+         S.start= vcal2utc(buf + 13);
          if(-1 == S.start)
             goto abort;
 
          S.flags |= START_FLG;
 
-      } else if(!strncmp(buf, "DTEND;", 6)) { // End time of the event
+      } else if(!strncmp(buf, "DTEND;TZID=", 11)) { // End time of the event
 
-         S.end= vcal2utc(buf + 6);
+         S.end= vcal2utc(buf + 11);
          if(-1 == S.end)
             goto abort;
 
@@ -212,7 +243,7 @@ main(int argc, char **argv)
 
       } else if(!strncmp(buf, "DTSTAMP:", 8)) { // When meeting was scheduled, UTC
 
-         const char *tm_str= buf + 7; // NOTE: vcal2utc() needs a preceding colon
+         const char *tm_str= buf + 7; // NOTE: vcal2utc() needs the preceding colon
 
          /* Convert 'struct tm' into time_t */
          S.scheduled= vcal2utc(tm_str);
@@ -276,45 +307,75 @@ main(int argc, char **argv)
 
       } else if(!strncmp(buf, "ATTENDEE;", 9)) { // Attendees
 
-         const char *str= fetchPerson(buf + 9);
-         if(!str)
+         ATND *atnd;
+         ATND_create(atnd, buf+9);
+         if(!atnd)
             goto abort;
 
-         PTRVEC_addTail(&S.attendee_vec, strdup(str));
+         PTRVEC_addTail(&S.attendee_vec, atnd);
       }
    }
 
-   /*=== Should have all available information. Print formatted info ===*/
+   /*===========================================================================*/
+   /*===================== Print report ========================================*/
+   /*===========================================================================*/
    if(S.flags & START_FLG)
-      ez_fprintf(stdout, "Event start: %s\n", local_strftime(&S.start, STRFTIME_FMT));
+      ez_fprintf(stdout, "%sEvent start:%s %s\n"
+            , G.REV
+            , G.NORMAL
+            , local_strftime(&S.start, STRFTIME_FMT)
+            );
 
    if(S.flags & END_FLG)
-      ez_fprintf(stdout, "  Event end: %s\n", local_strftime(&S.end, STRFTIME_FMT));
+      ez_fprintf(stdout, "%s  Event end:%s %s\n"
+            , G.REV
+            , G.NORMAL
+            , local_strftime(&S.end, STRFTIME_FMT)
+            );
 
    if(S.flags & SUMMARY_FLG)
-      ez_fprintf(stdout, "\nSummary: %s\n\t%s\n"
+      ez_fprintf(stdout, "\n%sSummary:%s %s%s\n\t%s\n"
+            , G.REV
+            , G.NORMAL
+            , S.flags & SCHED_FLG ? "As of " : ""
             , S.flags & SCHED_FLG ? local_strftime(&S.scheduled, STRFTIME_FMT) : ""
             , S.summary
             );
 
    if(S.flags & LOCATION_FLG)
-      ez_fprintf(stdout, "\nEvent location: %s\n", S.location);
+      ez_fprintf(stdout, "\n%sEvent location:%s %s\n"
+            , G.REV
+            , G.NORMAL
+            , S.location
+            );
 
    if(S.flags & ORG_FLG)
-      ez_fprintf(stdout, "\nEvent organizer: %s\n", S.organizer);
+      ez_fprintf(stdout, "\n%sEvent organizer:%s %s\n"
+            , G.REV
+            , G.NORMAL
+            , S.organizer
+            );
 
    /* Attendees */
+   PTRVEC_sort(&S.attendee_vec, ATND_ptrvec_cmp);
    if(PTRVEC_numItems(&S.attendee_vec)) {
-      ez_fprintf(stdout, "\nAttendees:\n");
+      ez_fprintf(stdout, "\n%sAttendees:%s\n"
+            , G.REV
+            , G.NORMAL
+            );
       unsigned i;
-      const char *str;
-      PTRVEC_loopFwd(&S.attendee_vec, i, str) {
-         ez_fprintf(stdout, "\t%s\n", str);
+      ATND *atnd;
+      PTRVEC_loopFwd(&S.attendee_vec, i, atnd) {
+         ATND_report(atnd, stdout);
       }
    }
 
    if(S.flags & DESC_FLG)
-      ez_fprintf(stdout, "\nDescription:\n\t%s\n", S.description);
+      ez_fprintf(stdout, "\n%sDescription:%s\n\t%s\n"
+            , G.REV
+            , G.NORMAL
+            , S.description
+            );
 
    /* Successful */
    rtn= EXIT_SUCCESS;
@@ -339,7 +400,7 @@ vcal2utc(const char *src)
    const char *tm_str;
    if(strchr(src, '"')) {
 
-      /* Case for Microsoft timezone "display name" */
+      /*-- Case for Microsoft timezone "display name" --*/
       tm_str= strstr(src, "\":");
 
       /* Make sure we found it */
@@ -350,8 +411,10 @@ vcal2utc(const char *src)
 
       /* Skip over sentinel chars */
       tm_str += 2;
+
    } else {
-      /* Case for regular Microsoft timezone */
+
+      /*-- Case for regular Microsoft timezone --*/
       tm_str= strstr(src, ":");
       /* Make sure we found it */
       if(!tm_str) {
@@ -373,24 +436,26 @@ vcal2utc(const char *src)
       goto abort;
    }
 
-   /* Date+time string may have been supplied UTC, or some local time zone */
+   /* Check to see if date+time string was expressed in UTC */
    if('Z' == *nxt) { // UTC
 
       /* Convert 'struct tm' into time_t */
       rtn= timegm(&tm);
 
-   } else {
+   } else { // Some local timezone
 
-      /* Date+time was supplied in local time */
+      /* If TZ is set, make a copy of it now */
       const char *TZ_orig= getenv("TZ");
 
-      /* Identify the timezone, and set it */
+      /* Identify the POSIX timezone, and set it */
       const struct tz_xref *xref;
       for(xref= Ms2Posix; xref->ms; ++xref) {
-         if(strcasestr(src, xref->ms)) {
-            setenv("TZ", xref->posix, 1);
-            break;
-         } 
+
+         if(!strcasestr(src, xref->ms))
+            continue;
+
+         setenv("TZ", xref->posix, 1);
+         break;
       }
 
       /* Make sure we didn't reach the end */
@@ -402,7 +467,7 @@ vcal2utc(const char *src)
       /* Convert 'struct tm' into time_t */
       rtn= mktime(&tm);
 
-      /* Now switch the TZ back to what it was */
+      /* Now switch the TZ back to what it was (if anything) */
       if(TZ_orig)
          setenv("TZ", TZ_orig, 1);
       else
@@ -477,10 +542,6 @@ fetchPerson(const char *src)
    int rc= sscanf(str + 3, "%63[^:]:MAILTO:%127s", name, email);
    if(2 != rc)
       goto abort;
-
-   /* Note required participants */
-   if(strstr(src, "REQ-PARTICIPANT"))
-      STR_append(&sb, "(req'd) ", -1);
 
    /* Print formatted info to buffer */
    STR_sprintf(&sb, "%s <%s>", name, email);
