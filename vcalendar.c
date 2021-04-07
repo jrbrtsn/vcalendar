@@ -102,7 +102,7 @@ static struct {
 } S= {
    .version.major= 0,
    .version.minor= 0,
-   .version.patch= 2
+   .version.patch= 3
 };
 
 /*===========================================================================*/
@@ -451,7 +451,7 @@ vcal2utc(const char *src)
       const struct tz_xref *xref;
       for(xref= Ms2Posix; xref->ms; ++xref) {
 
-         if(!strcasestr(src, xref->ms))
+         if(!strncasecmp(src, xref->ms, strlen(xref->ms)))
             continue;
 
          setenv("TZ", xref->posix, 1);
