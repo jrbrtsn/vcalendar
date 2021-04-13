@@ -540,8 +540,11 @@ fetchPerson(const char *src)
       goto abort;
 
    int rc= sscanf(str + 3, "%63[^:]:MAILTO:%127s", name, email);
-   if(2 != rc)
-      goto abort;
+   if(2 != rc) {
+      rc= sscanf(str + 3, "%63[^:]:mailto:%127s", name, email);
+      if(2 != rc)
+         goto abort;
+   }
 
    /* Print formatted info to buffer */
    STR_sprintf(&sb, "%s <%s>", name, email);

@@ -23,8 +23,11 @@ ATND_constructor (ATND * self, const char *src)
       goto abort;
 
    int rc= sscanf(str + 3, "%63[^:]:MAILTO:%127s", self->name, self->email);
-   if(2 != rc)
-      goto abort;
+   if(2 != rc) {
+      rc= sscanf(str + 3, "%63[^:]:mailto:%127s", self->name, self->email);
+      if(2 != rc)
+         goto abort;
+   }
 
    /* Note required participants */
    if(strstr(src, "REQ-PARTICIPANT"))
