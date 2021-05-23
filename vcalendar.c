@@ -57,6 +57,7 @@ const static struct tz_xref {
     */
    {.ms= "\"(UTC-06:00) Central Time (US & Canada)\"", .posix= "America/Chicago" },
    {.ms= "Central Standard Time:", .posix= "America/Chicago" },
+   {.ms= "Eastern Standard Time:", .posix= "America/New_York" },
 
    /*--- >>> LOOK <<< Add other members here ---*/
 
@@ -102,7 +103,7 @@ static struct {
 } S= {
    .version.major= 0,
    .version.minor= 0,
-   .version.patch= 3
+   .version.patch= 4
 };
 
 /*===========================================================================*/
@@ -226,7 +227,9 @@ main(int argc, char **argv)
       /*-------------------- Process reassembled line -----------------------------*/
       /*---------------------------------------------------------------------------*/
       if(!strncmp(buf, "DTSTART;TZID=", 13)) { // Start time of the event
-
+#ifdef qqDEBUG
+eprintf(">>>>> buf= \"%s\"", buf);
+#endif
          S.start= vcal2utc(buf + 13);
          if(-1 == S.start)
             goto abort;
@@ -396,6 +399,9 @@ vcal2utc(const char *src)
 {
    time_t rtn= -1;
    /* Find the ": sequence preceding the UTC time */
+#ifdef qqDEBUG
+eprintf(">>>>> src= \"%s\"", src);
+#endif
 
    const char *tm_str;
    if(strchr(src, '"')) {
@@ -436,6 +442,10 @@ vcal2utc(const char *src)
       goto abort;
    }
 
+#ifdef qqDEBUG
+eprintf(">>>>> nxt= \"%s\"", nxt);
+#endif
+
    /* Check to see if date+time string was expressed in UTC */
    if('Z' == *nxt) { // UTC
 
@@ -450,10 +460,16 @@ vcal2utc(const char *src)
       /* Identify the POSIX timezone, and set it */
       const struct tz_xref *xref;
       for(xref= Ms2Posix; xref->ms; ++xref) {
+#ifdef qqDEBUG
+eprintf(">>>>> src= \"%s\", xref->ms= \"%s\"", src, xref->ms);
+#endif
 
-         if(!strncasecmp(src, xref->ms, strlen(xref->ms)))
+         if(strncasecmp(src, xref->ms, strlen(xref->ms)))
             continue;
 
+#ifdef qqDEBUG
+eprintf(">>>>> setting TZ=\"%s\"", xref->posix);
+#endif
          setenv("TZ", xref->posix, 1);
          break;
       }
