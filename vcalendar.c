@@ -22,6 +22,7 @@
 #include "ez_libc.h"
 #include "ptrvec.h"
 #include "str.h"
+#include "tz_xref.h"
 #include "util.h"
 #include "vcalendar.h"
 
@@ -42,27 +43,6 @@ static const char *fetchPerson(const char *src);
 /*===========================================================================*/
 /*=================== static data ===========================================*/
 /*===========================================================================*/
-/***************************************************
- * Array of these structs provides the mapping between
- * Microsoft TZID or "TZID display name" to a POSIX
- * timezone. If you encounter a TZID not listed here,
- * please add in the correct mapping.
- */
-const static struct tz_xref {
-   const char *ms,
-              *posix;
-} Ms2Posix[]= {
-   /* Make sure to supply a sufficiently unique string to match what immediately
-    * follows 'TZID=', or 'DTSTAMP' (no colon).
-    */
-   {.ms= "\"(UTC-06:00) Central Time (US & Canada)\"", .posix= "America/Chicago" },
-   {.ms= "Central Standard Time:", .posix= "America/Chicago" },
-   {.ms= "Eastern Standard Time:", .posix= "America/New_York" },
-
-   /*--- >>> LOOK <<< Add other members here ---*/
-
-   { /* Terminating member */ }
-};
 
 /* Instance the global static data */
 struct Global G;
@@ -102,7 +82,7 @@ static struct {
 
 } S= {
    .version.major= 0,
-   .version.minor= 1,
+   .version.minor= 2,
    .version.patch= 0
 };
 

@@ -17,6 +17,7 @@ src := \
        ez_libpthread.c \
        ptrvec.c \
        str.c \
+       tz_xref.c \
        util.c \
        vcalendar.c \
 
