@@ -102,8 +102,8 @@ static struct {
 
 } S= {
    .version.major= 0,
-   .version.minor= 0,
-   .version.patch= 4
+   .version.minor= 1,
+   .version.patch= 0
 };
 
 /*===========================================================================*/
@@ -548,6 +548,7 @@ fetchPerson(const char *src)
    static STR sb;
    STR_sinit(&sb, 1024);
 
+   int n;
    char name[64],
         email[128];
 
@@ -555,16 +556,18 @@ fetchPerson(const char *src)
    if(!str)
       goto abort;
 
-   int rc= sscanf(str + 3, "%63[^:]:MAILTO:%127s", name, email);
-   if(2 != rc) {
-      rc= sscanf(str + 3, "%63[^:]:mailto:%127s", name, email);
-      if(2 != rc)
-         goto abort;
-   }
+   str += 3;
 
-   /* Print formatted info to buffer */
-   STR_sprintf(&sb, "%s <%s>", name, email);
-
+   if(2 == sscanf(str, "%63[^:]:MAILTO:%127s", name, email) ||
+      2 == sscanf(str, "%63[^:]:mailto:%127s", name, email) ||
+      2 == sscanf(str, "%63[^;];SENT-BY=\"%*[^\"]\":MAILTO:%127s", name, email) ||
+      2 == sscanf(str, "%63[^;];SENT-BY=\"%*[^\"]\":mailto:%127s", name, email) 
+      )
+   {
+      /* Print formatted info to buffer */
+      STR_sprintf(&sb, "%s <%s>", name, email);
+   } else
+      goto abort;
 
    /* Successful return */
    rtn= STR_str(&sb);
